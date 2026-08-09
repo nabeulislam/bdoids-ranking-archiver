@@ -802,63 +802,132 @@ abbr {
 }
 
 .score_0 {
-    background-color: #F40000;
-    /*background-image: linear-gradient(rgb(204, 0, 0), rgb(244, 0, 0));*/
+    color: #666;
 }
 
 .score_0_10 {
-    background-color: #EB1D00;
-    /*background-image: linear-gradient(rgb(210, 38, 0), rgb(235, 29, 0));*/
+    background-color: hsl(120, 30%, 87%);
 }
 
 .score_10_20 {
-    background-color: #E23A00;
-    /*background-image: linear-gradient(rgb(216, 77, 0), rgb(226, 58, 0));*/
+    background-color: hsl(120, 30%, 84%);
 }
 
 .score_20_30 {
-    background-color: #D95700;
-    /*background-image: linear-gradient(rgb(222, 115, 0), rgb(217, 87, 0));*/
+    background-color: hsl(120, 30%, 81%);
 }
 
 .score_30_40 {
-    background-color: #D17400;
-    /*background-image: linear-gradient(rgb(228, 154, 0), rgb(209, 116, 0));*/
+    background-color: hsl(120, 30%, 78%);
 }
 
 .score_40_50 {
-    background-color: #C89100;
-    /*background-image: linear-gradient(rgb(234, 192, 0), rgb(200, 145, 0));*/
+    background-color: hsl(120, 30%, 75%);
 }
 
 .score_50_60 {
-    background-color: #B99F00;
-    /*background-image: linear-gradient(rgb(225, 211, 2), rgb(185, 159, 0));*/
+    background-color: hsl(120, 30%, 72%);
 }
 
 .score_60_70 {
-    background-color: #A39E01;
-    /*background-image: linear-gradient(rgb(203, 211, 6), rgb(163, 158, 1));*/
+    background-color: hsl(120, 30%, 69%);
 }
 
 .score_70_80 {
-    background-color: #8E9D02;
-    /*background-image: linear-gradient(rgb(181, 211, 10), rgb(142, 157, 2));*/
+    background-color: hsl(120, 30%, 66%);
 }
 
 .score_80_90 {
-    background-color: #789C03;
-    /*background-image: linear-gradient(rgb(159, 210, 14), rgb(120, 156, 3));*/
+    background-color: hsl(120, 30%, 63%);
 }
 
 .score_90_100 {
-    background-color: #639B04;
-    /*background-image: linear-gradient(rgb(137, 210, 18), rgb(99, 155, 4));*/
+    background-color: hsl(120, 30%, 60%);
 }
 
 .score_100 {
-    background-color: #4E9A05;
-    /*background-image: linear-gradient(rgb(115, 210, 22), rgb(78, 154, 5));*/
+    background-color: hsl(120, 30%, 55%);
+}
+
+
+#Scoreboard_cols col.rank {
+    width: 80px;
+}
+
+/******************************************************************************\
+|                                                                              |
+|                                 Medal colors                                 |
+|                                 ------------                                 |
+\******************************************************************************/
+
+
+.medal-gold,
+#Scoreboard_body tr td.rank.medal-gold {
+    background-color: #fe5 !important;
+    border-radius: 5px;
+    font-weight: bold;
+    color: #000;
+}
+
+.medal-silver,
+#Scoreboard_body tr td.rank.medal-silver {
+    background-color: #ccc !important;
+    border-radius: 5px;
+    font-weight: bold;
+    color: #000;
+}
+
+.medal-bronze,
+#Scoreboard_body tr td.rank.medal-bronze {
+    background-color: #b87838 !important;
+    border-radius: 5px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.medal-hm,
+#Scoreboard_body tr td.rank.medal-hm {
+    background-color: #b197fa !important;
+    border-radius: 5px;
+    font-weight: bold;
+    color: #000;
+}
+
+
+/******************************************************************************\
+|                                                                              |
+|                       User Status (Unofficial & Cheater)                      |
+|                                                                              |
+\******************************************************************************/
+
+
+/* Unofficial Participants - Blue Rank Badge ONLY */
+#Scoreboard_body tr td.rank.user-unofficial,
+#Scoreboard_body tr.user-unofficial td.rank {
+    background-color: #357abd !important;
+    color: #ffffff !important;
+    font-weight: bold;
+    border-radius: 5px;
+}
+
+/* Cheater / Disqualified Participants - Red Rank Badge ONLY */
+#Scoreboard_body tr td.rank.user-cheater,
+#Scoreboard_body tr.user-cheater td.rank {
+    background-color: #d9534f !important;
+    color: #ffffff !important;
+    font-weight: bold;
+    border-radius: 5px;
+}
+
+/* Explicitly reset row & non-rank cells so full-row bars never appear */
+#Scoreboard_body tr.user-cheater,
+#Scoreboard_body tr.user-unofficial {
+    background-color: transparent !important;
+}
+
+#Scoreboard_body tr.user-cheater td:not(.rank),
+#Scoreboard_body tr.user-unofficial td:not(.rank) {
+    background-color: transparent !important;
 }
 
 

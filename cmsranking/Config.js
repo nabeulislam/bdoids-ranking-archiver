@@ -57,4 +57,87 @@ var Config = new function () {
     self.get_asset_config_url = function() {
         return "asset_config"
     }
+
+    self.get_user_status_class = function(user) {
+        if (!DataStore.asset_config) return "";
+        var raw_key = (user && typeof user === "object") ? (user["key"] || user["id"] || user["username"] || "") : String(user || "");
+        if (!raw_key) return "";
+
+        function norm(s) {
+            return String(s || "").toLowerCase().replace(/(%5f|_5f)/g, "_").trim();
+        }
+
+        var k = norm(raw_key);
+        if (!k) return "";
+
+        var cheaters = DataStore.asset_config["cheaters"] || [];
+        for (var i = 0; i < cheaters.length; i++) {
+            var c = norm(cheaters[i]);
+            if (c && (c === k || k.indexOf(c) !== -1 || c.indexOf(k) !== -1)) {
+                return "user-cheater";
+            }
+        }
+
+        var unofficial_users = DataStore.asset_config["unofficial_users"] || [];
+        for (var j = 0; j < unofficial_users.length; j++) {
+            var u = norm(unofficial_users[j]);
+            if (u && (u === k || k.indexOf(u) !== -1 || u.indexOf(k) !== -1)) {
+                return "user-unofficial";
+            }
+        }
+
+        return "";
+    };
+
+    self.has_full_score_task = function(user) {
+        if (!user || typeof user !== "object" || !DataStore.tasks) return false;
+        for (var t_key in DataStore.tasks) {
+            var task = DataStore.tasks[t_key];
+            var task_max = (task && task["max_score"] !== undefined) ? task["max_score"] : 100.0;
+            var user_task_score = user["t_" + t_key];
+            if (user_task_score !== undefined && user_task_score >= task_max && task_max > 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    self.get_medal = function(user) {
+        if (!DataStore.asset_config || DataStore.asset_config["unofficial"] || !DataStore.asset_config["medals"]) {
+            return "";
+        }
+        if (self.get_user_status_class(user) !== "") {
+            return "";
+        }
+        var score = (user && typeof user === "object") ? user["global"] : null;
+        if (score === null || score === undefined || score <= 0) {
+            if (typeof user === "number") {
+                var rank = user;
+                var medals = DataStore.asset_config["medals"];
+                if (rank <= medals["gold"]) return "medal-gold";
+                if (rank <= medals["silver"]) return "medal-silver";
+                if (rank <= medals["bronze"]) return "medal-bronze";
+                if (medals["hm"] && rank <= medals["hm"]) return "medal-hm";
+            }
+            return "";
+        }
+
+        if (DataStore.gold_min_score !== undefined && score >= DataStore.gold_min_score) {
+            return "medal-gold";
+        }
+        if (DataStore.silver_min_score !== undefined && score >= DataStore.silver_min_score) {
+            return "medal-silver";
+        }
+        if (DataStore.bronze_min_score !== undefined && score >= DataStore.bronze_min_score) {
+            return "medal-bronze";
+        }
+        if (DataStore.hm_min_score !== undefined && score >= DataStore.hm_min_score) {
+            return "medal-hm";
+        }
+        if (DataStore.asset_config["ioi_hm"] && self.has_full_score_task(user)) {
+            return "medal-hm";
+        }
+
+        return "";
+    };
 };

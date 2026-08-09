@@ -78,8 +78,20 @@ var Scoreboard = new function () {
             $("tr td[data-sort_key=" + self.sort_key + "]", self.tbody_el).addClass("sort_key");
         });
 
-        self.sort_key = "global";
         self.make_body();
+
+         if (DataStore.asset_config && DataStore.asset_config["noglobal"]) {
+            var contests = DataStore.contest_list;
+            if (contests.length > 0 && contests[0]["tasks"].length > 0) {
+                self.sort_key = "t_" + contests[0]["tasks"][0]["key"];
+            } else if (contests.length > 0) {
+                self.sort_key = "c_" + contests[0]["key"];
+            } else {
+                self.sort_key = "global";
+            }
+        } else {
+            self.sort_key = "global";
+        }
 
         // Set initial style
         $("col[data-sort_key=" + self.sort_key + "]", self.tcols_el).addClass("sort_key");
@@ -169,12 +181,16 @@ var Scoreboard = new function () {
 <col class=\"score task\" data-task=\"" + t_id + "\" data-sort_key=\"t_" + t_id + "\"/> <col/><col/>";
             }
 
-            result += " \
+            if (!DataStore.asset_config || !DataStore.asset_config["nocontest"]) {
+                result += " \
 <col class=\"score contest\" data-contest=\"" + c_id + "\" data-sort_key=\"c_" + c_id + "\"/> <col/><col/><col/>";
+            }
         }
 
-        result += " \
+        if (!DataStore.asset_config || !DataStore.asset_config["noglobal"]) {
+            result += " \
 <col class=\"score global\" data-sort_key=\"global\"/> <col/><col/><col/><col/>";
+        }
 
         return result;
     };
@@ -204,13 +220,17 @@ var Scoreboard = new function () {
     <th colspan=\"3\" class=\"score task\" data-task=\"" + t_id + "\" data-sort_key=\"t_" + t_id + "\"><abbr title=\"" + escapeHTML(task["name"]) + "\">" + escapeHTML(task["short_name"]) + "</abbr></th>";
             }
 
-            result += " \
+            if (!DataStore.asset_config || !DataStore.asset_config["nocontest"]) {
+                result += " \
     <th colspan=\"4\" class=\"score contest\" data-contest=\"" + c_id + "\" data-sort_key=\"c_" + c_id + "\"><abbr title=\"" + escapeHTML(contest["name"]) + "\">" + escapeHTML(contest["name"]) + "</abbr></th>";
+            }
         }
 
-        result += " \
-    <th colspan=\"5\" class=\"score global\" data-sort_key=\"global\">Global</th> \
-</tr>";
+        if (!DataStore.asset_config || !DataStore.asset_config["noglobal"]) {
+            result += " \
+    <th colspan=\"5\" class=\"score global\" data-sort_key=\"global\">Global</th>";
+        }
+        result += "\n</tr>";
 
         return result;
     };
@@ -231,23 +251,26 @@ var Scoreboard = new function () {
 
     self.make_row = function (user) {
         // See the comment in .make_cols() for the reason we use colspans.
+        var medal_class = Config.get_medal(user);
+        var status_class = Config.get_user_status_class(user);
+        var rank_class = status_class ? status_class : medal_class;
         var result = " \
 <tr class=\"user" + (user["selected"] > 0 ? " selected color" + user["selected"] : "") + "\" data-user=\"" + user["key"] + "\"> \
     <td class=\"sel\"></td> \
-    <td class=\"rank\">" + user["rank"] + "</td> \
+    <td class=\"rank" + (rank_class ? " " + rank_class : "") + "\">" + user["rank"] + "</td> \
     <td colspan=\"10\" class=\"f_name\">" + escapeHTML(user["f_name"]) + "</td> \
     <td colspan=\"10\" class=\"l_name\">" + escapeHTML(user["l_name"]) + "</td>";
 
         if (user['team']) {
             if (DataStore.asset_config && DataStore.asset_config["noflags"])
                 result += " \
-            <td class=\"team\">" + user["team"] + "</td>";
+    <td class=\"team\" title=\"" + escapeHTML(DataStore.teams[user["team"]]["name"]) + "\">" + escapeHTML(DataStore.teams[user["team"]]["name"]) + "</td>";
             else
                 result += " \
-    <td class=\"team\" title=\"" + DataStore.teams[user["team"]]["name"] + "\">" + user['key'] + "</td>";
+    <td class=\"team\" title=\"" + escapeHTML(DataStore.teams[user["team"]]["name"]) + "\"><img class=\"flag\" src=\"" + Config.get_flag_url(user["team"]) + "\" onerror=\"this.onerror=null;this.src='img/flag.png';\" alt=\"" + escapeHTML(DataStore.teams[user["team"]]["name"]) + "\" /></td>";
         } else {
             result += " \
-    <td class=\"team\">" + user['key'] + "</td>";
+    <td class=\"team\"></td>";
         }
 
         var contests = DataStore.contest_list;
@@ -265,15 +288,19 @@ var Scoreboard = new function () {
     <td colspan=\"3\" class=\"score task " + score_class + "\" data-task=\"" + t_id + "\" data-sort_key=\"t_" + t_id + "\">" + round_to_str(user["t_" + t_id], task["score_precision"]) + "</td>";
             }
 
-            var score_class = self.get_score_class(user["c_" + c_id], contest["max_score"]);
-            result += " \
+            if (!DataStore.asset_config || !DataStore.asset_config["nocontest"]) {
+                var score_class = self.get_score_class(user["c_" + c_id], contest["max_score"]);
+                result += " \
     <td colspan=\"4\" class=\"score contest " + score_class + "\" data-contest=\"" + c_id + "\" data-sort_key=\"c_" + c_id + "\">" + round_to_str(user["c_" + c_id], contest["score_precision"]) + "</td>";
+            }
         }
 
-        var score_class = self.get_score_class(user["global"], DataStore.global_max_score);
-        result += " \
-    <td colspan=\"5\" class=\"score global " + score_class + "\" data-sort_key=\"global\">" + round_to_str(user["global"], DataStore.global_score_precision) + "</td> \
-</tr>";
+        if (!DataStore.asset_config || !DataStore.asset_config["noglobal"]) {
+            var score_class = self.get_score_class(user["global"], DataStore.global_max_score);
+            result += " \
+    <td colspan=\"5\" class=\"score global " + score_class + "\" data-sort_key=\"global\">" + round_to_str(user["global"], DataStore.global_score_precision) + "</td>";
+        }
+        result += "\n</tr>";
 
         return result;
     };
@@ -410,9 +437,15 @@ var Scoreboard = new function () {
         $row.children("td.f_name").text(user["f_name"]);
         $row.children("td.l_name").text(user["l_name"]);
 
-        $row.children(".team").text(user['key']);
         if (user["team"]) {
             $row.children(".team").attr("title", DataStore.teams[user["team"]]["name"]);
+            if (DataStore.asset_config && DataStore.asset_config["noflags"]) {
+                $row.children(".team").text(DataStore.teams[user["team"]]["name"]);
+            } else {
+                $row.children(".team").html('<img class="flag" src="' + Config.get_flag_url(user["team"]) + '" alt="' + DataStore.teams[user["team"]]["name"] + '" />');
+            }
+        } else {
+            $row.children(".team").text("");
         }
     };
 
@@ -476,7 +509,34 @@ var Scoreboard = new function () {
     self.rank_handler = function (u_id, user) {
         var $row = $(user["row"]);
 
-        $row.children("td.rank").text(user["rank"]);
+        var $rankTd = $row.children("td.rank");
+        $rankTd.text(user["rank"]);
+        $rankTd.removeClass("medal-gold medal-silver medal-bronze user-unofficial user-cheater");
+
+        var medal_class = Config.get_medal(user);
+        var status_class = Config.get_user_status_class(user);
+        var rank_class = status_class ? status_class : medal_class;
+        if (rank_class) {
+            $rankTd.addClass(rank_class);
+        }
+    };
+
+    self.update_medals = function () {
+        for (var u_id in DataStore.users) {
+            var user = DataStore.users[u_id];
+            if (user && user["row"]) {
+                var $row = $(user["row"]);
+                var $rankTd = $row.children("td.rank");
+                $rankTd.removeClass("medal-gold medal-silver medal-bronze user-unofficial user-cheater");
+
+                var medal_class = Config.get_medal(user);
+                var status_class = Config.get_user_status_class(user);
+                var rank_class = status_class ? status_class : medal_class;
+                if (rank_class) {
+                    $rankTd.addClass(rank_class);
+                }
+            }
+        }
     };
 
 

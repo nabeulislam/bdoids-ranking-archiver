@@ -8,7 +8,7 @@ import sys
 import json
 import urllib3
 import argparse
-from distutils.dir_util import copy_tree
+import shutil
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -22,6 +22,17 @@ parser.add_argument("--css", help="Crawl the page's CSS", action="store_true")
 parser.add_argument("--nofaces", help="Don't crawl user faces", action="store_true")
 parser.add_argument("--noflags", help="Don't crawl team flags", action="store_true")
 parser.add_argument("--nosublist", help="Don't crawl detailed submission info", action="store_true")
+parser.add_argument("--gold", help="Gold medal rank cutoff (default: IOI standard ~1/12 of participants)", type=int)
+parser.add_argument("--silver", help="Silver medal rank cutoff (default: IOI standard ~1/4 of participants)", type=int)
+parser.add_argument("--bronze", help="Bronze medal rank cutoff (default: IOI standard ~1/2 of participants)", type=int)
+parser.add_argument("--hm", help="Honorable Mention rank cutoff", type=int)
+parser.add_argument("--ioi-hm", help="Enable official IOI Honorable Mention rule (non-medalist who solved at least 1 task completely)", action="store_true")
+parser.add_argument("--no-medals", help="Disable medal colors entirely", action="store_true")
+parser.add_argument("--unofficial", help="Mark contest as unofficial (disables medal highlights)", action="store_true")
+parser.add_argument("--unofficial-users", help="List of unofficial user keys (highlighted in blue)", nargs="+")
+parser.add_argument("--cheaters", help="List of cheater/disqualified user keys (highlighted in red)", nargs="+")
+parser.add_argument("--nocontest", help="Remove contest total columns from scoreboard", action="store_true")
+parser.add_argument("--noglobal", help="Remove global total column from scoreboard", action="store_true")
 
 args = parser.parse_args()
 
@@ -73,7 +84,7 @@ if output is None:
     output = list(dir_reqs[dir_names.index("contests")].json().keys())[0]
 
 print("Copying static files...")
-copy_tree("cmsranking", output, update=1)
+shutil.copytree("cmsranking", output, dirs_exist_ok=True)
 
 for i in range(len(dir_names)):
     if dir_reqs[i] is not None:
@@ -124,11 +135,79 @@ for i in range(len(sub_names)):
             print("Failed to receive %s/%s!" % (sub_names[i], sub_items[i][j]))
 
 
-asset_config = "{\"nofaces\": " + str(args.nofaces).lower() + \
-               ",\"noflags\": " + str(args.noflags).lower() + \
-               ",\"nosublist\": " + str(args.nosublist).lower() + "}"
-open(output + "/asset_config", "w").write(asset_config)
+def parse_user_list(raw_list):
+    if not raw_list:
+        return []
+    result = []
+    for item in raw_list:
+        item_norm = item.replace("%5f", "_").replace("%5F", "_")
+        for u in item_norm.replace(",", " ").split():
+            u_clean = u.strip()
+            if u_clean and u_clean not in result:
+                result.append(u_clean)
+    return result
 
+def normalize_user_key(value):
+    """Normalize the underscore encoding used by CMS/RWS user keys."""
+    return str(value or "").lower().replace("%5f", "_").replace("_5f", "_").strip()
+
+
+def resolve_user_keys(raw_list, users):
+    """Store the actual downloaded key so the archive matches it exactly."""
+    requested = parse_user_list(raw_list)
+    downloaded = {}
+    for key in users:
+        downloaded.setdefault(normalize_user_key(key), key)
+
+    resolved = []
+    for key in requested:
+        actual_key = downloaded.get(normalize_user_key(key), key)
+        if actual_key not in resolved:
+            resolved.append(actual_key)
+        if actual_key != key:
+            print("Resolved user key %s -> %s" % (key, actual_key))
+    return resolved
+
+
+downloaded_user_keys = list(user_req.json().keys())
+unofficial_users = resolve_user_keys(args.unofficial_users, downloaded_user_keys)
+cheaters = resolve_user_keys(args.cheaters, downloaded_user_keys)
+
+# Build asset_config
+asset_cfg = {
+    "nofaces": args.nofaces,
+    "noflags": args.noflags,
+    "nosublist": args.nosublist,
+    "nocontest": args.nocontest,
+    "noglobal": args.noglobal,
+    "unofficial": args.unofficial,
+    "unofficial_users": unofficial_users,
+    "cheaters": cheaters
+}
+
+# Medal cutoffs: IOI standard proportions by default (disabled if --no-medals or --unofficial)
+if not args.no_medals and not args.unofficial:
+    user_count = len(user_req.json())
+    gold = args.gold if args.gold is not None else max(1, round(user_count / 12))
+    silver = args.silver if args.silver is not None else max(gold + 1, round(user_count / 4))
+    bronze = args.bronze if args.bronze is not None else max(silver + 1, round(user_count / 2))
+    medals_dict = {"gold": gold, "silver": silver, "bronze": bronze}
+    if args.hm is not None:
+        medals_dict["hm"] = args.hm
+    asset_cfg["medals"] = medals_dict
+    asset_cfg["ioi_hm"] = args.ioi_hm
+    print("Medal cutoffs: Gold ≤ %d, Silver ≤ %d, Bronze ≤ %d (of %d users)" % (gold, silver, bronze, user_count))
+elif args.unofficial:
+    print("Unofficial contest mode: Medal highlights disabled.")
+
+open(output + "/asset_config", "w").write(json.dumps(asset_cfg))
+
+print("Cheaters in archive: %s" % (", ".join(cheaters) if cheaters else "none"))
+print("Archive output: %s" % os.path.abspath(output))
+print("The source URL is read-only; serve/deploy the archive output to view these settings.")
+
+# Copy custom archiver static files to root output directory
+shutil.copytree("cmsranking", output, dirs_exist_ok=True)
 
 print("%s Archived!" % url)
 print("You can now use any web server (eg. nginx) to serve %s!" % output)

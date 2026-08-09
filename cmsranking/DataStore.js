@@ -72,14 +72,32 @@ var DataStore = new function () {
                 self.update_network_status(2);
             }
         });
+    };
+
+    self.init_asset_config = function () {
         $.ajax({
             url: Config.get_asset_config_url(),
             dataType: "json",
             success: function (data, status, xhr) {
                 self.asset_config = data;
+                self.compute_medal_thresholds();
+                if (window.Scoreboard && window.Scoreboard.update_medals) {
+                    window.Scoreboard.update_medals();
+                }
+                self.inits_todo -= 1;
+                if (self.inits_todo == 0) {
+                    self.init_scores();
+                }
+            },
+            error: function () {
+                self.asset_config = {};
+                self.inits_todo -= 1;
+                if (self.inits_todo == 0) {
+                    self.init_scores();
+                }
             }
         });
-    }
+    };
 
     self.create_contest = function (key, data) {
         data["key"] = key;
@@ -200,12 +218,8 @@ var DataStore = new function () {
     self.create_user = function (key, data) {
         if (data["team"] !== null && self.teams[data["team"]] === undefined)
         {
-            console.error("Could not find team " + data["team"] + " for user " + key);
-            if (self.es) {
-                self.es.close();
-            }
-            self.update_network_status(2);
-            return;
+            console.warn("Could not find team " + data["team"] + " for user " + key + ", setting team to null");
+            data["team"] = null;
         }
 
         data["key"] = key;
@@ -399,7 +413,80 @@ var DataStore = new function () {
             delete old_user["rank"];
         });
 
+        self.compute_medal_thresholds();
         self.init_callback();
+    };
+
+    self.compute_medal_thresholds = function () {
+        if (!self.asset_config || self.asset_config["unofficial"] || !self.asset_config["medals"]) {
+            return;
+        }
+        var medals = self.asset_config["medals"];
+        var g_target = medals["gold"] || 1;
+        var s_target = medals["silver"] || 4;
+        var b_target = medals["bronze"] || 8;
+
+        var sorted = [];
+        for (var u_id in self.users) {
+            if (self.users[u_id] && self.users[u_id]["global"] > 0) {
+                sorted.push(self.users[u_id]);
+            }
+        }
+        sorted.sort(function (a, b) { return b["global"] - a["global"]; });
+
+        if (sorted.length === 0) {
+            self.gold_min_score = Infinity;
+            self.silver_min_score = Infinity;
+            self.bronze_min_score = Infinity;
+            return;
+        }
+
+        // Gold threshold
+        var g_idx = Math.min(g_target - 1, sorted.length - 1);
+        self.gold_min_score = sorted[g_idx]["global"];
+
+        var g_count = 0;
+        for (var i = 0; i < sorted.length; i++) {
+            if (sorted[i]["global"] >= self.gold_min_score) g_count++;
+        }
+
+        // Silver threshold covers (s_target - g_target) slots after Gold
+        var s_count_target = Math.max(1, s_target - g_target);
+        var s_end_idx = Math.min(g_count + s_count_target - 1, sorted.length - 1);
+        if (s_end_idx >= g_count) {
+            self.silver_min_score = sorted[s_end_idx]["global"];
+        } else {
+            self.silver_min_score = Infinity;
+        }
+
+        var s_count = 0;
+        for (var i = 0; i < sorted.length; i++) {
+            if (sorted[i]["global"] < self.gold_min_score && sorted[i]["global"] >= self.silver_min_score) s_count++;
+        }
+
+        // Bronze threshold covers (b_target - s_target) slots after Silver
+        var b_count_target = Math.max(1, b_target - s_target);
+        var b_end_idx = Math.min(g_count + s_count + b_count_target - 1, sorted.length - 1);
+        if (b_end_idx >= g_count + s_count) {
+            self.bronze_min_score = sorted[b_end_idx]["global"];
+        } else {
+            self.bronze_min_score = Infinity;
+        }
+
+        if (medals["hm"]) {
+            var hm_target = medals["hm"];
+            var b_count = 0;
+            for (var i = 0; i < sorted.length; i++) {
+                if (sorted[i]["global"] < self.silver_min_score && sorted[i]["global"] >= self.bronze_min_score) b_count++;
+            }
+            var hm_count_target = Math.max(1, hm_target - b_target);
+            var hm_end_idx = Math.min(g_count + s_count + b_count + hm_count_target - 1, sorted.length - 1);
+            if (hm_end_idx >= g_count + s_count + b_count) {
+                self.hm_min_score = sorted[hm_end_idx]["global"];
+            } else {
+                self.hm_min_score = Infinity;
+            }
+        }
     };
 
 
@@ -418,12 +505,13 @@ var DataStore = new function () {
      */
 
     self.init = function (callback) {
-        self.inits_todo = 2;
+        self.inits_todo = 3;
         self.init_callback = callback;
 
+        self.init_asset_config();
         self.init_contests();
         self.init_teams();
-        if (self.network_state == 0) self.update_network_status(1)
+        if (self.network_state == 0) self.update_network_status(1);
     };
 
 
