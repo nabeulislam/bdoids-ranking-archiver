@@ -48,7 +48,7 @@ python3 rws-archiver.py https://ranking.nabeul.ami.bd my_archive
 ```bash
 python3 rws-archiver.py https://ranking.nabeul.ami.bd bdoids_round1 \
   --gold 3 --silver 10 --bronze 19 --hm 25 \
-  --cheaters turjayanbiswas_5f79 \
+  --cheaters cheater_user1 \
   --unofficial-users guest_user1 guest_user2 \
   --noglobal
 ```
