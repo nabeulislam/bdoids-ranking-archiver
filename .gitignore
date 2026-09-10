@@ -1,1 +1,16 @@
 .idea
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+.DS_Store
+
+# Archived output directories
+test/
+testfinal/
+testx/
+testy/
+bdoids/
+officialbdoids/
+archived_output/
+BdOIDS_2dRound_2d1/
