@@ -5,12 +5,22 @@ __pycache__/
 *.swp
 .DS_Store
 
-# Archived output directories
-test/
-testfinal/
-testx/
-testy/
-bdoids/
-officialbdoids/
+# Temporary and test artifacts
+.chrome-test*
+.sync-fix*
+
+# Legacy single-contest dump directories
+test*/
 archived_output/
+archive/
+unoffical/
+officialbdoids/
+bdoids/
 BdOIDS_2dRound_2d1/
+
+# Build and environment files
+.vercel
+.env*
+site/dist/
+site/node_modules/
+

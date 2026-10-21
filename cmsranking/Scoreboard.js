@@ -511,7 +511,7 @@ var Scoreboard = new function () {
 
         var $rankTd = $row.children("td.rank");
         $rankTd.text(user["rank"]);
-        $rankTd.removeClass("medal-gold medal-silver medal-bronze user-unofficial user-cheater");
+        $rankTd.removeClass("medal-gold medal-silver medal-bronze medal-hm user-unofficial user-cheater");
 
         var medal_class = Config.get_medal(user);
         var status_class = Config.get_user_status_class(user);
@@ -527,7 +527,7 @@ var Scoreboard = new function () {
             if (user && user["row"]) {
                 var $row = $(user["row"]);
                 var $rankTd = $row.children("td.rank");
-                $rankTd.removeClass("medal-gold medal-silver medal-bronze user-unofficial user-cheater");
+                $rankTd.removeClass("medal-gold medal-silver medal-bronze medal-hm user-unofficial user-cheater");
 
                 var medal_class = Config.get_medal(user);
                 var status_class = Config.get_user_status_class(user);

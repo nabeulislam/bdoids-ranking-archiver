@@ -19,20 +19,21 @@ parser.add_argument("-s", "--sessions", help="Number of sessions", type=int, def
 parser.add_argument("-r", "--retry", help="Times to retry for each response", type=int, default=5)
 parser.add_argument("--html", help="Crawl the page's HTML", action="store_true")
 parser.add_argument("--css", help="Crawl the page's CSS", action="store_true")
-parser.add_argument("--nofaces", help="Don't crawl user faces", action="store_true")
-parser.add_argument("--noflags", help="Don't crawl team flags", action="store_true")
-parser.add_argument("--nosublist", help="Don't crawl detailed submission info", action="store_true")
+parser.add_argument("--nofaces", help="Don't crawl user faces", action="store_true", default=None)
+parser.add_argument("--noflags", help="Don't crawl team flags", action="store_true", default=None)
+parser.add_argument("--nosublist", help="Don't crawl detailed submission info", action="store_true", default=None)
 parser.add_argument("--gold", help="Gold medal rank cutoff (default: IOI standard ~1/12 of participants)", type=int)
 parser.add_argument("--silver", help="Silver medal rank cutoff (default: IOI standard ~1/4 of participants)", type=int)
 parser.add_argument("--bronze", help="Bronze medal rank cutoff (default: IOI standard ~1/2 of participants)", type=int)
 parser.add_argument("--hm", help="Honorable Mention rank cutoff", type=int)
-parser.add_argument("--ioi-hm", help="Enable official IOI Honorable Mention rule (non-medalist who solved at least 1 task completely)", action="store_true")
-parser.add_argument("--no-medals", help="Disable medal colors entirely", action="store_true")
-parser.add_argument("--unofficial", help="Mark contest as unofficial (disables medal highlights)", action="store_true")
+parser.add_argument("--ioi-hm", help="Enable official IOI Honorable Mention rule (non-medalist who solved at least 1 task completely)", action="store_true", default=None)
+parser.add_argument("--no-medals", help="Disable medal colors entirely", action="store_true", default=None)
+parser.add_argument("--unofficial", help="Mark contest as unofficial (disables medal highlights)", action="store_true", default=None)
 parser.add_argument("--unofficial-users", help="List of unofficial user keys (highlighted in blue)", nargs="+")
 parser.add_argument("--cheaters", help="List of cheater/disqualified user keys (highlighted in red)", nargs="+")
-parser.add_argument("--nocontest", help="Remove contest total columns from scoreboard", action="store_true")
-parser.add_argument("--noglobal", help="Remove global total column from scoreboard", action="store_true")
+parser.add_argument("--nocontest", help="Remove contest total columns from scoreboard", action="store_true", default=None)
+parser.add_argument("--noglobal", help="Remove global total column from scoreboard", action="store_true", default=None)
+parser.add_argument("--zero-cheater-scores", help="Replace cheater task scores with zero (off by default; preserves the archived ranking)", action="store_true")
 
 args = parser.parse_args()
 
@@ -50,7 +51,7 @@ sub_items = [[], [], []]
 
 NUM_SESSIONS = args.sessions
 sessions = [requests.Session() for i in range(NUM_SESSIONS)]
-retries = Retry(total=5,
+retries = Retry(total=args.retry,
                 backoff_factor=0.1,
                 status_forcelist=[500, 502, 503, 504])
 for s in sessions:
@@ -59,6 +60,45 @@ for s in sessions:
 
 print("Archiving CMS scoreboard from %s" % url)
 print("Using %d sessions" % NUM_SESSIONS)
+
+
+def read_json_response(response):
+    """Return a JSON object only when an optional endpoint is valid."""
+    if response is None or response.status_code != 200:
+        return {}
+    try:
+        value = response.json()
+    except (ValueError, TypeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+# Keep metadata from an existing RWS archive when it is available. This is
+# what preserves red cheater badges, blue unofficial badges, medal cutoffs,
+# and archive-specific layout settings across re-archives.
+source_asset_cfg = {}
+try:
+    asset_response = sessions[0].get(url + "/asset_config", verify=False, timeout=15)
+    source_asset_cfg = read_json_response(asset_response)
+except requests.RequestException:
+    print("No source asset_config endpoint found; using archiver defaults.")
+
+
+def config_flag(name):
+    cli_value = getattr(args, name)
+    if cli_value is not None:
+        return bool(cli_value)
+    return bool(source_asset_cfg.get(name, False))
+
+
+args.nofaces = config_flag("nofaces")
+args.noflags = config_flag("noflags")
+args.nosublist = config_flag("nosublist")
+args.nocontest = config_flag("nocontest")
+args.noglobal = config_flag("noglobal")
+args.unofficial = config_flag("unofficial")
+args.no_medals = (bool(args.no_medals) if args.no_medals is not None
+                  else bool(source_asset_cfg.get("no_medals", False)))
 
 if args.nofaces:
     sub_names.remove("faces")
@@ -168,13 +208,47 @@ def resolve_user_keys(raw_list, users):
             print("Resolved user key %s -> %s" % (key, actual_key))
     return resolved
 
+def zero_cheater_scores(score_path, cheaters):
+    """Zero all archived task scores for cheaters/disqualified users."""
+    if not cheaters or not os.path.exists(score_path):
+        return
+
+    with open(score_path, "r") as f:
+        scores = json.load(f)
+
+    changed = False
+    for user_key in cheaters:
+        if user_key not in scores:
+            continue
+        for task_key in scores[user_key]:
+            if scores[user_key][task_key] != 0.0:
+                scores[user_key][task_key] = 0.0
+                changed = True
+
+    if changed:
+        with open(score_path, "w") as f:
+            json.dump(scores, f)
+
 
 downloaded_user_keys = list(user_req.json().keys())
-unofficial_users = resolve_user_keys(args.unofficial_users, downloaded_user_keys)
-cheaters = resolve_user_keys(args.cheaters, downloaded_user_keys)
+unofficial_raw = (args.unofficial_users if args.unofficial_users is not None
+                  else source_asset_cfg.get("unofficial_users", []))
+cheaters_raw = (args.cheaters if args.cheaters is not None
+                else source_asset_cfg.get("cheaters", []))
+unofficial_users = resolve_user_keys(unofficial_raw, downloaded_user_keys)
+cheaters = resolve_user_keys(cheaters_raw, downloaded_user_keys)
 
-# Build asset_config
-asset_cfg = {
+# Do not rewrite scores merely because a user is marked as a cheater. The
+# original RWS ranking, submission data, and score history remain authoritative;
+# the red badge is metadata. Score zeroing is available as an explicit opt-in.
+if args.zero_cheater_scores:
+    zero_cheater_scores(output + "/scores", cheaters)
+
+# Build asset_config from the source first, then apply explicit CLI overrides.
+# Keeping unknown keys also preserves archive-specific settings such as
+# award_users and medal_ranks used by older contest archives.
+asset_cfg = dict(source_asset_cfg)
+asset_cfg.update({
     "nofaces": args.nofaces,
     "noflags": args.noflags,
     "nosublist": args.nosublist,
@@ -183,19 +257,33 @@ asset_cfg = {
     "unofficial": args.unofficial,
     "unofficial_users": unofficial_users,
     "cheaters": cheaters
-}
+})
 
-# Medal cutoffs: IOI standard proportions by default (disabled if --no-medals or --unofficial)
-if not args.no_medals and not args.unofficial:
+if args.ioi_hm is not None:
+    asset_cfg["ioi_hm"] = bool(args.ioi_hm)
+
+# Medal cutoffs: preserve source cutoffs unless the caller supplies a medal
+# override. With no source metadata, use the IOI-style defaults.
+medal_override = any(value is not None for value in
+                     (args.gold, args.silver, args.bronze, args.hm))
+if args.no_medals:
+    asset_cfg.pop("medals", None)
+    asset_cfg.pop("medal_ranks", None)
+    asset_cfg["no_medals"] = True
+elif not args.unofficial and (medal_override or
+                              ("medals" not in asset_cfg and "medal_ranks" not in asset_cfg)):
     user_count = len(user_req.json())
-    gold = args.gold if args.gold is not None else max(1, round(user_count / 12))
-    silver = args.silver if args.silver is not None else max(gold + 1, round(user_count / 4))
-    bronze = args.bronze if args.bronze is not None else max(silver + 1, round(user_count / 2))
+    source_medals = asset_cfg.get("medals", {})
+    gold = args.gold if args.gold is not None else source_medals.get("gold", max(1, round(user_count / 12)))
+    silver = args.silver if args.silver is not None else source_medals.get("silver", max(gold + 1, round(user_count / 4)))
+    bronze = args.bronze if args.bronze is not None else source_medals.get("bronze", max(silver + 1, round(user_count / 2)))
     medals_dict = {"gold": gold, "silver": silver, "bronze": bronze}
     if args.hm is not None:
         medals_dict["hm"] = args.hm
+    elif source_medals.get("hm") is not None:
+        medals_dict["hm"] = source_medals["hm"]
+    asset_cfg.pop("medal_ranks", None)
     asset_cfg["medals"] = medals_dict
-    asset_cfg["ioi_hm"] = args.ioi_hm
     print("Medal cutoffs: Gold ≤ %d, Silver ≤ %d, Bronze ≤ %d (of %d users)" % (gold, silver, bronze, user_count))
 elif args.unofficial:
     print("Unofficial contest mode: Medal highlights disabled.")

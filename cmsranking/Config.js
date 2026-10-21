@@ -103,12 +103,28 @@ var Config = new function () {
     };
 
     self.get_medal = function(user) {
-        if (!DataStore.asset_config || DataStore.asset_config["unofficial"] || !DataStore.asset_config["medals"]) {
+        if (!DataStore.asset_config || DataStore.asset_config["unofficial"] ||
+            (!DataStore.asset_config["medals"] && !DataStore.asset_config["medal_ranks"])) {
             return "";
         }
         if (self.get_user_status_class(user) !== "") {
             return "";
         }
+
+        // Some archives need specific medal positions rather than contiguous
+        // cutoff ranges (for example, gold at rank 1 and bronze at rank 3).
+        var explicit_medals = DataStore.asset_config["medal_ranks"];
+        if (explicit_medals) {
+            var explicit_rank = (user && typeof user === "object") ? user["rank"] : user;
+            for (var medal_name in explicit_medals) {
+                var ranks = explicit_medals[medal_name] || [];
+                if (ranks.indexOf(explicit_rank) !== -1) {
+                    return "medal-" + medal_name;
+                }
+            }
+            return "";
+        }
+
         var score = (user && typeof user === "object") ? user["global"] : null;
         if (score === null || score === undefined || score <= 0) {
             if (typeof user === "number") {

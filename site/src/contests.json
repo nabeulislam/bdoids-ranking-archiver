@@ -1,0 +1,20 @@
+[
+  {
+    "slug": "bdoids-round-1",
+    "title": "BdOIDS Round 1",
+    "dir": "round-1",
+    "description": "BdOIDS Selection Contest - Round 1"
+  },
+  {
+    "slug": "bdoids-round-2",
+    "title": "BdOIDS Round 2",
+    "dir": "round-2",
+    "description": "BdOIDS Selection Contest - Round 2"
+  },
+  {
+    "slug": "bdoids-round-3",
+    "title": "BdOIDS Round 3",
+    "dir": "round-3",
+    "description": "BdOIDS Selection Contest - Round 3"
+  }
+]

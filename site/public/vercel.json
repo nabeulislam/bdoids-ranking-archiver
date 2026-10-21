@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/bdoids-round-2/"
+    },
+    {
+      "source": "/faces/:path*",
+      "destination": "/bdoids-round-2/faces/:path*"
+    }
+  ]
+}
